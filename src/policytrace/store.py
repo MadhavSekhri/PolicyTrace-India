@@ -73,12 +73,13 @@ def diff_versions(db, old_id, new_id):
 
 
 def search(db, query, limit=25):
-    if not query.strip():
+    if not isinstance(query, str) or not query.strip():
         raise ValueError("query must not be empty")
-    needle = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    # Escape LIKE wildcards using ! as an explicit single-character escape.
+    needle = query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
     rows = db.execute(
         """SELECT id,source_url,publisher,title,observed_at FROM documents
-           WHERE body LIKE ? ESCAPE '\' OR title LIKE ? ESCAPE '\'
+           WHERE body LIKE ? ESCAPE '!' OR title LIKE ? ESCAPE '!'
            ORDER BY id DESC LIMIT ?""",
         (f"%{needle}%", f"%{needle}%", limit),
     ).fetchall()
