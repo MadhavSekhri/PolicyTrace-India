@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "policytrace-india"
+version = "0.1.0"
+description = "Trace source-attributed policy documents and local text revisions"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Open-source contributors"}]
+dependencies = []
+
+[project.scripts]
+policytrace = "policytrace.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
