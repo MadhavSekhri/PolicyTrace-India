@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from policytrace.store import connect, ingest, history, diff_versions, search
+from policytrace.store import connect, ingest, history, diff_versions, search, latest, verify_integrity
 
 URL = "https://example.gov.in/notice/123"
 
@@ -33,6 +33,35 @@ class TestHistory(unittest.TestCase):
         with self.assertRaises(ValueError):
             ingest(self.db, source_url="javascript:alert(1)",
                    publisher="A", title="B", body="C")
+
+    def test_verify_detects_modified_body(self):
+        record = self.record("original")
+        self.assertTrue(verify_integrity(self.db)["ok"])
+        with self.db:
+            self.db.execute("UPDATE documents SET body=? WHERE id=?",
+                            ("altered", record["id"]))
+        result = verify_integrity(self.db)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["mismatch_ids"], [record["id"]])
+
+    def test_latest_is_per_source(self):
+        self.record("first")
+        current = self.record("second")
+        ingest(self.db, source_url="https://example.gov.in/other",
+               publisher="Example agency", title="Other notice", body="third")
+        items = latest(self.db)
+        self.assertEqual(len(items), 2)
+        self.assertEqual(latest(self.db, URL)[0]["id"], current["id"])
+
+    def test_search_escapes_sql_wildcards(self):
+        self.record("100% allocated")
+        self.record("100 percent allocated")
+        self.assertEqual(len(search(self.db, "%")), 1)
+        self.assertEqual(len(search(self.db, "_")), 0)
+
+    def test_host_required(self):
+        with self.assertRaises(ValueError):
+            ingest(self.db, source_url="https://", publisher="A", title="B", body="C")
 
     def test_reject_diff_between_different_sources(self):
         a = self.record("one")

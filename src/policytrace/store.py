@@ -2,6 +2,7 @@
 import difflib
 import hashlib
 import sqlite3
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 
 
@@ -29,8 +30,13 @@ def ingest(db, *, source_url, publisher, title, body, observed_at=None):
                         ("title", title), ("body", body)):
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{name} must be nonempty")
-    if not source_url.startswith(("https://", "http://")):
-        raise ValueError("source_url must be an HTTP(S) URL")
+    try:
+        parts = urlsplit(source_url)
+        valid_url = parts.scheme in ("https", "http") and bool(parts.hostname) and not parts.username and not parts.password
+    except ValueError:
+        valid_url = False
+    if not valid_url:
+        raise ValueError("source_url must be an absolute HTTP(S) URL with host")
     digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
     existing = db.execute(
         "SELECT id FROM documents WHERE source_url=? AND sha256=?",
@@ -84,3 +90,44 @@ def search(db, query, limit=25):
         (f"%{needle}%", f"%{needle}%", limit),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def latest(db, source_url=None):
+    """Return latest revision metadata, once per tracked source."""
+    if source_url is not None:
+        records = db.execute(
+            """SELECT id,source_url,publisher,title,sha256,observed_at
+               FROM documents WHERE source_url=? ORDER BY id DESC LIMIT 1""",
+            (source_url,),
+        ).fetchall()
+    else:
+        records = db.execute(
+            """SELECT id,source_url,publisher,title,sha256,observed_at FROM documents d
+               WHERE id=(SELECT MAX(id) FROM documents WHERE source_url=d.source_url)
+               ORDER BY id DESC""",
+        ).fetchall()
+    return [dict(record) for record in records]
+
+
+def verify_integrity(db, source_url=None):
+    """Check stored document text against its recorded SHA-256 checksum.
+
+    This detects accidental corruption or edits to stored text; it does not
+    authenticate publisher provenance or guarantee tamper-proof storage.
+    """
+    if source_url is None:
+        records = db.execute("SELECT id,body,sha256 FROM documents").fetchall()
+    else:
+        records = db.execute(
+            "SELECT id,body,sha256 FROM documents WHERE source_url=?", (source_url,)
+        ).fetchall()
+    mismatches = [
+        row["id"] for row in records
+        if hashlib.sha256(row["body"].encode("utf-8")).hexdigest() != row["sha256"]
+    ]
+    return {
+        "checked": len(records),
+        "ok": not mismatches,
+        "mismatch_ids": mismatches,
+        "caveat": "Checksum matching does not prove source authenticity.",
+    }

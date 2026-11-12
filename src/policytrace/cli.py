@@ -2,7 +2,7 @@
 import argparse
 import json
 from pathlib import Path
-from .store import connect, ingest, history, diff_versions, search
+from .store import connect, ingest, history, diff_versions, search, latest, verify_integrity
 
 
 def main(argv=None):
@@ -20,6 +20,10 @@ def main(argv=None):
     p.add_argument("new", type=int)
     p = sub.add_parser("search")
     p.add_argument("--query", required=True)
+    p = sub.add_parser("latest", help="Show latest revision per tracked source")
+    p.add_argument("--source-url", default=None)
+    p = sub.add_parser("verify", help="Check local body SHA-256 against recorded digests")
+    p.add_argument("--source-url", default=None)
     for p in sub.choices.values():
         p.add_argument("--db", type=Path, default=Path("policytrace.sqlite3"))
     args = parser.parse_args(argv)
@@ -33,10 +37,14 @@ def main(argv=None):
             result = history(db, args.source_url)
         elif args.command == "diff":
             result = {"diff": diff_versions(db, args.old, args.new)}
-        else:
+        elif args.command == "search":
             result = search(db, args.query)
+        elif args.command == "latest":
+            result = latest(db, args.source_url)
+        else:
+            result = verify_integrity(db, args.source_url)
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0
+        return 1 if args.command == "verify" and not result["ok"] else 0
     except (ValueError, OSError) as exc:
         parser.exit(2, f"error: {exc}\n")
     finally:
