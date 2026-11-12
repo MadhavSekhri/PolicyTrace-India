@@ -17,3 +17,7 @@ policytrace = "policytrace.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.urls]
+Repository = "https://github.com/MadhavSekhri/PolicyTrace-India"
+Issues = "https://github.com/MadhavSekhri/PolicyTrace-India/issues"
