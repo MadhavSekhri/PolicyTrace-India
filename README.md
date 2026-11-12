@@ -36,6 +36,8 @@ Text is excluded by default; --include-text explicitly opts in. The exporter
 checks source-row digests, labels provenance as unverified and never fetches
 government URLs. See [evidence export format](docs/EVIDENCE_EXPORT.md).
 
+Try the [public-source pilot](docs/PUBLIC_SOURCE_PILOT.md) with two government releases on India's National Critical Mineral Mission.
+
 ## Input and provenance safety
 
 The default CLI is strictly offline and never downloads the `--source-url`; that field is a claimed provenance identifier, not an authenticated government citation. Documents must be valid UTF-8 and at most **2 MiB**; source URLs must be absolute HTTP(S) URLs without embedded spaces, control characters, or userinfo. Publisher and title are bounded single-line values. Search is limited to 512-character queries and at most 100 results per call. Observation timestamps and publication timestamps are different concepts; the current revision store tracks observation only.
