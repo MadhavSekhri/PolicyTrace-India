@@ -23,3 +23,18 @@ jobs:
           ruff check --select E4,E7,E9,F src tests
       - name: Verify installed dependencies
         run: python -m pip check
+      - name: Verify the public-source pilot commands
+        shell: bash
+        run: |
+          printf '%s\n' 'Synthetic test text representing the January approval.' > ncmm-approval.txt
+          printf '%s\n' 'Synthetic test text representing the July follow-up.' > ncmm-follow-up.txt
+          sed -n '/^\x60\x60\x60bash$/,/^\x60\x60\x60$/p' docs/PUBLIC_SOURCE_PILOT.md | sed '1d;$d' > pilot.sh
+          test -s pilot.sh
+          bash -e pilot.sh
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          rows = [json.loads(line) for line in Path("ncmm-evidence.jsonl").read_text().splitlines()]
+          assert len(rows) == 2
+          PY
