@@ -1,7 +1,13 @@
 import tempfile
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
-from policytrace.store import connect, ingest, history, diff_versions, search, latest, verify_integrity
+from policytrace.store import (
+    MAX_DOCUMENT_BYTES, connect, ingest, history, diff_versions,
+    search, latest, verify_integrity,
+)
+from policytrace.cli import main
 
 URL = "https://example.gov.in/notice/123"
 
@@ -62,6 +68,45 @@ class TestHistory(unittest.TestCase):
     def test_host_required(self):
         with self.assertRaises(ValueError):
             ingest(self.db, source_url="https://", publisher="A", title="B", body="C")
+
+    def test_reject_url_confusion_and_unsafe_characters(self):
+        invalid = [
+            "https://", "https://example.com:99999/path",
+            "https://user:pass@example.com/policy", "https://@example.com/",
+            "https://example.com/path\nother", "https://example.com/with space",
+            "https://example.com\\@evil.test", "ftp://example.com/file",
+            "https://example.com:0",
+        ]
+        for url in invalid:
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                ingest(self.db, source_url=url, publisher="Agency", title="Notice", body="text")
+
+    def test_body_and_search_budgets(self):
+        with self.assertRaisesRegex(ValueError, "2 MiB"):
+            self.record("z" * (MAX_DOCUMENT_BYTES + 1))
+        with self.assertRaisesRegex(ValueError, "UTF-8"):
+            self.record("\ud800")
+        with self.assertRaises(ValueError):
+            search(self.db, "x" * 513)
+        for limit in (0, -1, 101, True, 0.5):
+            with self.subTest(limit=limit), self.assertRaises(ValueError):
+                search(self.db, "ok", limit)
+
+    def test_bad_observation_timestamp(self):
+        with self.assertRaisesRegex(ValueError, "timezone"):
+            ingest(self.db, source_url=URL, publisher="A", title="Notice",
+                   body="text", observed_at="2026-11-12T14:00:00")
+
+    def test_cli_refuses_oversized_document(self):
+        with tempfile.TemporaryDirectory() as folder:
+            file = Path(folder) / "large.txt"
+            file.write_bytes(b"x" * (MAX_DOCUMENT_BYTES + 1))
+            with redirect_stderr(StringIO()):
+                with self.assertRaises(SystemExit) as err:
+                    main(["ingest", "--source-url", URL, "--publisher", "A",
+                          "--title", "Notice", "--file", str(file),
+                          "--db", str(Path(folder) / "test.sqlite")])
+            self.assertEqual(err.exception.code, 2)
 
     def test_reject_diff_between_different_sources(self):
         a = self.record("one")
