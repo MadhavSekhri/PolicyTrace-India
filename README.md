@@ -25,6 +25,12 @@ You can ingest a new version of the same source and compare revision IDs:
 
 Each revision stores the source URL, publisher, title, observation timestamp, SHA-256 digest, and document text. Reingesting unchanged text is idempotent. `latest` returns the most recent observed revision per URL without returning full document bodies; `verify` compares stored text against stored SHA-256 digests and exits with code 1 if mismatched. **Checksums detect accidental changes but do not prove government provenance or prevent a malicious database rewrite.**
 
+## Input and provenance safety
+
+The default CLI is strictly offline and never downloads the `--source-url`; that field is a claimed provenance identifier, not an authenticated government citation. Documents must be valid UTF-8 and at most **2 MiB**; source URLs must be absolute HTTP(S) URLs without embedded spaces, control characters, or userinfo. Publisher and title are bounded single-line values. Search is limited to 512-character queries and at most 100 results per call. Observation timestamps and publication timestamps are different concepts; the current revision store tracks observation only.
+
+For the detailed architecture, remaining risks and planned connector work, see [Product plan](docs/PRODUCT_PLAN.md) and [Threat model](docs/THREAT_MODEL.md).
+
 ## Test
 
     python -m unittest discover -s tests -v

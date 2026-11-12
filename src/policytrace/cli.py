@@ -2,7 +2,23 @@
 import argparse
 import json
 from pathlib import Path
-from .store import connect, ingest, history, diff_versions, search, latest, verify_integrity
+from .store import (
+    MAX_DOCUMENT_BYTES, connect, ingest, history, diff_versions,
+    search, latest, verify_integrity,
+)
+
+
+def _read_document(path):
+    if path.is_symlink():
+        raise ValueError("document must not be a symbolic link")
+    with path.open("rb") as stream:
+        raw = stream.read(MAX_DOCUMENT_BYTES + 1)
+    if len(raw) > MAX_DOCUMENT_BYTES:
+        raise ValueError("document exceeds 2 MiB limit")
+    try:
+        return raw.decode("utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise ValueError("document must be UTF-8") from exc
 
 
 def main(argv=None):
@@ -32,7 +48,7 @@ def main(argv=None):
         if args.command == "ingest":
             result = ingest(
                 db, source_url=args.source_url, publisher=args.publisher,
-                title=args.title, body=args.file.read_text(encoding="utf-8"))
+                title=args.title, body=_read_document(args.file))
         elif args.command == "history":
             result = history(db, args.source_url)
         elif args.command == "diff":
