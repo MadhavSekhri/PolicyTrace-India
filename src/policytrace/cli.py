@@ -1,6 +1,8 @@
 """Offline document-tracking CLI; does not crawl URLs."""
 import argparse
 import json
+import sys
+from .evidence import write_jsonl
 from pathlib import Path
 from .store import (
     MAX_DOCUMENT_BYTES, connect, ingest, history, diff_versions,
@@ -40,6 +42,11 @@ def main(argv=None):
     p.add_argument("--source-url", default=None)
     p = sub.add_parser("verify", help="Check local body SHA-256 against recorded digests")
     p.add_argument("--source-url", default=None)
+    p = sub.add_parser("export", help="Stream versioned JSONL evidence records")
+    p.add_argument("--source-url", default=None)
+    p.add_argument("--after-id", type=int, default=0)
+    p.add_argument("--limit", type=int, default=100)
+    p.add_argument("--include-text", action="store_true")
     for p in sub.choices.values():
         p.add_argument("--db", type=Path, default=Path("policytrace.sqlite3"))
     args = parser.parse_args(argv)
@@ -57,6 +64,11 @@ def main(argv=None):
             result = search(db, args.query)
         elif args.command == "latest":
             result = latest(db, args.source_url)
+        elif args.command == "export":
+            write_jsonl(db, sys.stdout, source_url=args.source_url,
+                        after_id=args.after_id, limit=args.limit,
+                        include_text=args.include_text)
+            return 0
         else:
             result = verify_integrity(db, args.source_url)
         print(json.dumps(result, ensure_ascii=False, indent=2))

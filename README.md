@@ -25,6 +25,17 @@ You can ingest a new version of the same source and compare revision IDs:
 
 Each revision stores the source URL, publisher, title, observation timestamp, SHA-256 digest, and document text. Reingesting unchanged text is idempotent. `latest` returns the most recent observed revision per URL without returning full document bodies; `verify` compares stored text against stored SHA-256 digests and exits with code 1 if mismatched. **Checksums detect accidental changes but do not prove government provenance or prevent a malicious database rewrite.**
 
+## Portable evidence export (P1)
+
+Export a paginated, versioned stream suitable for independent tools:
+
+    policytrace export --db policy.sqlite3 --limit 100 > evidence.jsonl
+    policytrace export --db policy.sqlite3 --after-id 100 --include-text > with-text.jsonl
+
+Text is excluded by default; --include-text explicitly opts in. The exporter
+checks source-row digests, labels provenance as unverified and never fetches
+government URLs. See [evidence export format](docs/EVIDENCE_EXPORT.md).
+
 ## Input and provenance safety
 
 The default CLI is strictly offline and never downloads the `--source-url`; that field is a claimed provenance identifier, not an authenticated government citation. Documents must be valid UTF-8 and at most **2 MiB**; source URLs must be absolute HTTP(S) URLs without embedded spaces, control characters, or userinfo. Publisher and title are bounded single-line values. Search is limited to 512-character queries and at most 100 results per call. Observation timestamps and publication timestamps are different concepts; the current revision store tracks observation only.
